@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sailpoint-hackday": {
+      "command": "/ABSOLUTE/PATH/TO/REPO/.venv/bin/python",
+      "args": ["/ABSOLUTE/PATH/TO/REPO/server.py"]
+    }
+  }
+}

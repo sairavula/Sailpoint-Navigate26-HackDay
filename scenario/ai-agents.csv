@@ -1,0 +1,7 @@
+id,name,groups,displayName,description,owner,ownerEmail,purpose,declaredAccess,status,type,environment
+agt-001,invoice-bot,AccountsPayable,Invoice Bot,Accounts-payable automation agent. Reads invoices and drafts payment batches for human approval.,Denise.Hunt,Denise.Hunt@sailpointdemo.com,accounts-payable-drafting,AccountsPayable,ACTIVE,AI_AGENT,PRODUCTION
+agt-001,invoice-bot,AccountsReceivable,Invoice Bot,Accounts-payable automation agent. Reads invoices and drafts payment batches for human approval.,Denise.Hunt,Denise.Hunt@sailpointdemo.com,accounts-payable-drafting,AccountsPayable,ACTIVE,AI_AGENT,PRODUCTION
+agt-002,deploy-bot,ENG_Prod,Deploy Bot,CI/CD agent. Promotes builds to the staging environment.,Sandra.Lopez,Sandra.Lopez@sailpointdemo.com,staging-deploys,ENG_Stage,ACTIVE,AI_AGENT,PRODUCTION
+agt-003,payroll-sync-bot,PayrollRead,Payroll Sync Bot,Exports payroll summaries for finance reporting. Read-only.,samantha.holstine,samantha.holstine@sailpoint.com,payroll-reporting,PayrollRead,ACTIVE,AI_AGENT,PRODUCTION
+agt-004,hr-onboarding-bot,HRRead,HR Onboarding Bot,Prepares onboarding checklists for new hires. Read-only HR access.,Evelyn.Ellis,Evelyn.Ellis@sailpointdemo.com,hr-onboarding,HRRead,ACTIVE,AI_AGENT,PRODUCTION
+agt-005,green-isnt-safe-governor,,Green Isn't Safe Governor,Read-only identity governance agent (MCP server sailpoint-hackday). Explains access and exposes accountability gaps.,hack.day,developer-relations@sailpoint.com,governance-read-only,,ACTIVE,AI_AGENT,PRODUCTION

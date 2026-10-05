@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.mcp.json
+mcp-inspector.json
+.DS_Store

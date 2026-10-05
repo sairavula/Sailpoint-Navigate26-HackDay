@@ -1,0 +1,27 @@
+{
+  "_comment": "Local agent registry. Used only when ISC /machine-identities/v2 returns no AI_AGENT records (this demo tenant has no AI-agent source configured). Owners and entitlements are resolved live from ISC by name; nothing here is trusted as identity data.",
+  "agents": [
+    {
+      "name": "green-isnt-safe-governor",
+      "subtype": "AI_AGENT",
+      "description": "Read-only identity governance agent. Explains access and exposes accountability gaps.",
+      "owner": "hack.day",
+      "mcpServer": "sailpoint-hackday",
+      "declaredAccess": [],
+      "entitlements": [],
+      "targetAccount": null,
+      "status": "ACTIVE"
+    },
+    {
+      "name": "invoice-bot",
+      "subtype": "AI_AGENT",
+      "description": "Accounts-payable automation agent. Declared purpose: read invoices and draft payment batches for human approval.",
+      "owner": "Denise.Hunt",
+      "mcpServer": null,
+      "declaredAccess": ["AccountsPayable"],
+      "entitlements": ["AccountsPayable", "AccountsReceivable"],
+      "targetAccount": "invoice-bot",
+      "status": "ACTIVE"
+    }
+  ]
+}
