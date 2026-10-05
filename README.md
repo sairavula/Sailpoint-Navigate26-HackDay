@@ -9,7 +9,7 @@ An MCP server for SailPoint Identity Security Cloud (ISC) that lets an AI assist
 > *Your dashboards say green. Ask the agent what they're not telling you.*
 
 **SailPoint Navigate 2026 Hack Day** · Track: MCP Server · Team: Sai Ravula, Alex, Muyiwa
-Full business case: **[docs/business-case.md](docs/business-case.md)**
+Full business case: **[docs/business-case.md](docs/business-case.md)** · Slides: **[PDF](docs/Green-Isnt-Safe-Navigate26.pdf)** / [PPTX](docs/Green-Isnt-Safe-Navigate26.pptx)
 
 ---
 
@@ -131,6 +131,7 @@ flowchart LR
 | `scenario/ai-agents.csv` | The 5-agent fleet aggregated into the `Bots` source |
 | `agents.json` | Offline fallback registry (used only when ISC returns no agents) |
 | `tests/` | Offline unit tests for the scoring logic |
+| `docs/` | Business case, slide deck (PDF and PPTX), and `build_deck.js`, which regenerates the deck with pptxgenjs |
 
 **Agent registry adapter.** Agents are read from the first source that returns data:
 1. ISC machine identities (`/machine-identities/v2`, subtype `AI_AGENT`)
