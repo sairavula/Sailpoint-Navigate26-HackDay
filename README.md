@@ -8,7 +8,7 @@ An MCP server for SailPoint Identity Security Cloud (ISC) that lets an AI assist
 
 > *Your dashboards say green. Ask the agent what they're not telling you.*
 
-**SailPoint Navigate 2026 Hack Day** · Track: MCP Server · Team: Sai Ravula, Alex, Muyiwa
+**SailPoint Navigate 2026 Hack Day** · Track: MCP Server · Team: Sai Ravula, Alex, Muyiwa, Priya
 Full business case: **[docs/business-case.md](docs/business-case.md)** · Slides: **[PDF](docs/Green-Isnt-Safe-Navigate26.pdf)** / [PPTX](docs/Green-Isnt-Safe-Navigate26.pptx)
 
 ---
