@@ -2,6 +2,7 @@
 ### Catching a rogue AI agent through its accountability chain, then containing it with a human in the loop
 
 **Team:** Sai Ravula · Alex · Muyiwa · Priya (Cox Automotive, IAM & Data Protection)
+
 **Built on:** SailPoint ISC APIs + MCP (Python FastMCP) · demo tenant `devrel-ga-25087`
 **Date:** 2026-10-05, SailPoint Navigate Hack Day
 
