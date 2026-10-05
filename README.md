@@ -131,7 +131,7 @@ flowchart LR
 | `scenario/ai-agents.csv` | The 5-agent fleet aggregated into the `Bots` source |
 | `agents.json` | Offline fallback registry (used only when ISC returns no agents) |
 | `tests/` | Offline unit tests for the scoring logic |
-| `docs/` | Business case, slide deck (PDF and PPTX), and `build_deck.js`, which regenerates the deck with pptxgenjs |
+| `docs/` | Business case and slide deck (PDF and PPTX) |
 
 **Agent registry adapter.** Agents are read from the first source that returns data:
 1. ISC machine identities (`/machine-identities/v2`, subtype `AI_AGENT`)
