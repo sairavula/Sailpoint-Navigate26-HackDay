@@ -39,9 +39,15 @@ LOG_DIR.mkdir(exist_ok=True, mode=0o700)
 _REDACT = re.compile(r"(client_secret|access_token|api_key|bearer)\s*[=:]?\s*\S+", re.IGNORECASE)
 
 
+_CONTROL = re.compile(r"[\r\n\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
 class _RedactFilter(logging.Filter):
+    """Redact secrets and strip control characters, so input such as a quarantine
+    reason cannot forge extra lines in the key=value audit log."""
+
     def filter(self, record: logging.LogRecord) -> bool:
-        record.msg = _REDACT.sub(r"\1=[REDACTED]", str(record.msg))
+        record.msg = _CONTROL.sub(" ", _REDACT.sub(r"\1=[REDACTED]", str(record.msg)))
         return True
 
 
@@ -53,6 +59,15 @@ if not logger.handlers:
     _handler.addFilter(_RedactFilter())
     logger.addHandler(_handler)
 logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+def quote(value: str) -> str:
+    """Escape a value for use inside a double-quoted ISC search or filter string.
+
+    Identity names come from the model and entitlement names come from agent
+    source data; both are untrusted, and an unescaped quote would rewrite the query.
+    """
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
 
 
 class ISCError(Exception):
@@ -167,7 +182,7 @@ class ISCClient:
 
     async def identity_by_name(self, name: str) -> Optional[dict]:
         """Exact name match first, then free-text fallback."""
-        docs = await self.search("identities", f'name:"{name}"', limit=1)
+        docs = await self.search("identities", f'name:"{quote(name)}"', limit=1)
         if not docs:
             docs = await self.search("identities", name, limit=1)
         return docs[0] if docs else None

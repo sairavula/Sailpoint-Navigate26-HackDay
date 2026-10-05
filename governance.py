@@ -8,7 +8,11 @@ one object at a time. Each tool walks the chain and returns evidence[] records
 """
 
 import asyncio
+import hashlib
+import hmac
 import json
+import secrets
+import time
 import os
 import re
 from collections import Counter
@@ -17,7 +21,7 @@ from pathlib import Path
 from typing import Optional
 
 import target_app
-from isc_client import EXPERIMENTAL, ISCError, is_inactive, isc, lifecycle_state, logger
+from isc_client import EXPERIMENTAL, ISCError, is_inactive, isc, lifecycle_state, logger, quote
 
 REGISTRY_FILE = Path(__file__).with_name("agents.json")
 BOTS_SOURCE_NAME = os.getenv("BOTS_SOURCE_NAME", "Bots")
@@ -91,7 +95,7 @@ def _as_list(v) -> list[str]:
 async def _agents_from_source(source_name: str) -> list[dict]:
     """Agents aggregated from a delimited-file source (one account per agent)."""
     try:
-        srcs = await isc.list_all("/v3/sources", params={"filters": f'name eq "{source_name}"'})
+        srcs = await isc.list_all("/v3/sources", params={"filters": f'name eq "{quote(source_name)}"'})
         if not srcs:
             return []
         src = srcs[0]
@@ -123,6 +127,31 @@ async def _agents_from_source(source_name: str) -> list[dict]:
 
 
 QUARANTINE_TAG = "AGENT_QUARANTINED"
+
+# Dry-run-first is enforced by the server, not left to the model: confirm=true needs
+# the token from a dry run for the same agent at the same risk score, within the TTL.
+# The key is per process, so restarting the server invalidates outstanding tokens.
+_TOKEN_KEY = secrets.token_bytes(32)
+CONFIRMATION_TTL_SECONDS = 600
+
+
+def issue_confirmation_token(agent_name: str, score: int, now: Optional[float] = None) -> str:
+    ts = int(now if now is not None else time.time())
+    sig = hmac.new(_TOKEN_KEY, f"{agent_name}|{score}|{ts}".encode(), hashlib.sha256).hexdigest()[:20]
+    return f"{ts}.{sig}"
+
+
+def verify_confirmation_token(token: str, agent_name: str, score: int, now: Optional[float] = None) -> bool:
+    try:
+        ts_text, sig = token.split(".", 1)
+        ts = int(ts_text)
+    except (AttributeError, ValueError):
+        return False
+    current = now if now is not None else time.time()
+    if not 0 <= current - ts <= CONFIRMATION_TTL_SECONDS:
+        return False
+    expected = hmac.new(_TOKEN_KEY, f"{agent_name}|{score}|{ts}".encode(), hashlib.sha256).hexdigest()[:20]
+    return hmac.compare_digest(sig, expected)
 
 
 async def set_quarantine_tag(agent: dict, on: bool) -> list[str]:
@@ -169,10 +198,10 @@ async def _entitlements_by_name(names: list[str], source_id: Optional[str] = Non
     if source_id:
         # Entitlements API, not search: the search index lags fresh aggregations,
         # and an unresolved id would silently degrade SoD matching to names.
-        quoted = ", ".join(f'"{n}"' for n in sorted(set(names)))
-        docs = await isc.list_all("/v2025/entitlements", params={"filters": f'source.id eq "{source_id}" and name in ({quoted})'})
+        quoted = ", ".join(f'"{quote(n)}"' for n in sorted(set(names)))
+        docs = await isc.list_all("/v2025/entitlements", params={"filters": f'source.id eq "{quote(source_id)}" and name in ({quoted})'})
     else:
-        query = "name:(" + " OR ".join(f'"{n}"' for n in sorted(set(names))) + ")"
+        query = "name:(" + " OR ".join(f'"{quote(n)}"' for n in sorted(set(names))) + ")"
         docs = await isc.search("entitlements", query, limit=250)
     return {d["name"]: d for d in docs if d.get("name") in names}
 
@@ -396,15 +425,17 @@ async def detect_rogue_agents(agent_name: Optional[str] = None) -> dict:
     return {"registry": registry, "scannedAt": _now(), "rogueCount": sum(r["rogue"] for r in results), "agents": results}
 
 
-async def quarantine_agent(agent_name: str, reason: str, confirm: bool = False) -> dict:
-    """Quarantine an AI agent. DRY RUN by default; only confirm=True acts.
+async def quarantine_agent(agent_name: str, reason: str, confirm: bool = False, confirmation_token: str = "") -> dict:
+    """Quarantine an AI agent. DRY RUN by default; only confirm=True with a valid token acts.
 
-    Use after detect_rogue_agents flags an agent. Always call first with
-    confirm=False and show the plan to the human; call with confirm=True only after
-    the human explicitly approves. Actions on confirm: (1) deactivate the agent in
-    the registry (ISC DEACTIVATE lifecycle action when registered in ISC), (2) disable
-    the agent's account in its target application. Entitlement revocation and owner
-    reassignment are recommended, not executed.
+    Use after detect_rogue_agents flags an agent. First call with confirm=False: it
+    returns the plan and a confirmation_token. Show the plan to the human. Only after
+    the human explicitly approves, call again with confirm=True and that
+    confirmation_token (valid 10 minutes, for this agent at this risk score).
+    Actions on confirm: (1) contain the agent in ISC (DEACTIVATE lifecycle action for
+    ISC machine identities, otherwise an AGENT_QUARANTINED tag), (2) disable the
+    agent's account in its target application. Revocation and owner reassignment
+    are recommended, not executed.
     """
     if not reason.strip():
         return {"error": "reason is required (it is written to the audit log)."}
@@ -446,7 +477,16 @@ async def quarantine_agent(agent_name: str, reason: str, confirm: bool = False) 
 
     if not confirm:
         logger.info(f"event=quarantine_planned agent={agent['name']} score={finding['riskScore']}")
-        return {**base, "mode": "DRY_RUN", "next": "Show this plan to the human. Re-run with confirm=true only after explicit approval."}
+        return {**base, "mode": "DRY_RUN",
+                "confirmationToken": issue_confirmation_token(agent["name"], finding["riskScore"]),
+                "next": "Show this plan to the human. Only after explicit approval, call again with confirm=true "
+                        "and this confirmationToken (valid 10 minutes)."}
+
+    if not verify_confirmation_token(confirmation_token, agent["name"], finding["riskScore"]):
+        logger.warning(f"event=quarantine_refused agent={agent['name']} reason=missing_or_invalid_token")
+        return {"error": "confirm=true requires the confirmationToken from a dry run of this agent at its "
+                         "current risk score, issued within the last 10 minutes. Run the dry run, show the "
+                         "plan to the human, then confirm with that token.", "agent": agent["name"]}
 
     results = []
     try:

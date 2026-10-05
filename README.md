@@ -59,10 +59,9 @@ No single screen shows the chain, so no one checks it. Humans already have this 
 | **Explain** | "Why does invoice-bot have AccountsReceivable?" | `explain_access` | Read-only |
 | **Expose** | "Is our governance healthy?" | `find_accountability_gaps` | Read-only |
 | **Detect** | "Are any of our AI agents rogue?" | `detect_rogue_agents` | Read-only |
-| **Contain** | "Quarantine invoice-bot." | `quarantine_agent` | **Dry run by default**, human-confirmed |
+| **Contain** | "Quarantine invoice-bot." | `quarantine_agent` | **Dry run first** (server-enforced), then human-confirmed |
 
-Every result includes **`evidence[]`** (ISC object IDs and timestamps). The assistant writes the narrative;
-the ISC records are the audit evidence.
+Every result includes **`evidence[]`** (ISC object IDs and timestamps), so an auditor can replay each claim against ISC.
 
 ### Detection signals and scoring
 `detect_rogue_agents` walks each agent's chain and scores it from 0 to 100:
@@ -88,15 +87,16 @@ Live results across the 5-agent fleet:
 | hr-onboarding-bot | Evelyn.Ellis (active) | **0 LOW** |
 
 ### Containment (`quarantine_agent`)
-1. **Dry run, always first.** It returns a 4-step plan and changes nothing.
-2. With `confirm=true`, after a human approves:
+1. **Dry run, always first.** It returns a 4-step plan and a `confirmationToken`, and changes nothing.
+2. With `confirm=true` **and that token**, after a human approves. The server refuses `confirm=true` without a
+   token from a dry run of the same agent at the same risk score in the last 10 minutes, so the model can't skip the plan.
    - **ISC:** tags the agent's account and identity `AGENT_QUARANTINED`. For agents registered as ISC
      machine identities, it submits the native `DEACTIVATE` lifecycle action instead.
    - **Target app:** disables the agent's account in the system it acts on.
 3. **Recommended, not executed:** revoking the drifted or SoD-conflicting access, and reassigning the
    owner (escalated to the departed owner's manager).
 
-It runs at WARN with the human's stated reason, and `reset_demo.py --apply` reverses it.
+Every containment is logged at WARN with the human's stated reason. `reset_demo.py --apply` reverses it.
 
 ---
 
@@ -218,11 +218,15 @@ Afterwards, run `python reset_demo.py --apply` again.
 ---
 
 ## Security
-- **4 of 5 tools are read-only** (`readOnlyHint`). `quarantine_agent` is annotated `destructiveHint`, runs as a
-  dry run by default, and acts only with an explicit `confirm=true` after human approval.
+- **4 of 5 tools are read-only** (`readOnlyHint`). `quarantine_agent` is annotated `destructiveHint`, so MCP clients
+  ask the human before running it, and it acts only with `confirm=true` plus a fresh token from its own dry run (HMAC-bound to
+  the agent and risk score, 10-minute TTL, per-process key).
 - **No secrets in files.** Credentials come from macOS Keychain or Windows Credential Manager and are typed at a hidden prompt.
-- **Auditable.** Every call is logged in Splunk-ready key=value format with a correlation ID to
-  `~/.sailpoint-hackday-mcp/server.log`. Tokens and keys are redacted.
+- **Auditable.** Every ISC call is logged in Splunk-ready key=value format with a correlation ID to
+  `~/.sailpoint-hackday-mcp/server.log`. Secrets are redacted, and control characters are stripped so input
+  such as a quarantine reason can't forge log lines.
+- **Untrusted input is escaped.** Identity names come from the model and entitlement names come from agent source
+  data. Both are escaped before they go into ISC search or filter strings (`isc_client.quote`).
 - **Minimal data to the model.** Tools return summarized fields, not raw identity records.
 - **Least privilege.** The hack-day lab requires a `sp:scopes:all` PAT. For production, use a dedicated
   read-only client plus one narrowly scoped write for tagging.
@@ -232,6 +236,12 @@ Afterwards, run `python reset_demo.py --apply` again.
 - **Flat-file sources can't provision**, so ISC can't disable the agent's ISC account. We found this in rehearsal.
   Containment tags the agent in ISC and disables it at the target app. Native machine-identity `DEACTIVATE` is implemented for tenants with AI-agent sources.
 - The "sensitive access" flag on leavers uses a keyword heuristic (`prod`, `vpn`, `treasury`, …), not ISC classification.
+- **The server enforces that a dry run happened, not that a human approved it.** Human approval comes from the MCP
+  client's permission prompt for a destructive tool. Run with a client that prompts, and don't auto-approve this tool.
+- **`declaredAccess` is self-declared** on the agent record, so a careless owner can declare too much and hide drift.
+  The SoD and orphaned-owner checks fire regardless. In production, purpose should come from the approved access request.
+- **Agent metadata is untrusted text that reaches the model.** A rogue agent's description could carry a prompt
+  injection. The token gate and the human prompt mean injected text can't contain or release anything by itself.
 - Efficiency figures in the business case are illustrative estimates and should be replaced by a pilot baseline.
 
 ## Roadmap

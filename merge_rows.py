@@ -18,7 +18,7 @@ import asyncio
 import json
 import sys
 
-from isc_client import ISCError, isc
+from isc_client import ISCError, isc, quote
 
 WANTED = {"mergeRows": True, "indexColumns": ["id"], "mergeColumns": ["groups"]}
 
@@ -29,7 +29,7 @@ def _arg(flag: str, default: str) -> str:
 
 async def main() -> int:
     name = _arg("--source", "Bots")
-    sources = await isc.list_all("/v3/sources", params={"filters": f'name eq "{name}"'})
+    sources = await isc.list_all("/v3/sources", params={"filters": f'name eq "{quote(name)}"'})
     if not sources:
         print(f"ERROR: source '{name}' not found")
         return 1

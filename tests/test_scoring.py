@@ -103,5 +103,41 @@ class Helpers(unittest.TestCase):
         self.assertEqual(g._as_list(["A"]), ["A"])
 
 
+class ConfirmationToken(unittest.TestCase):
+    """confirm=true must follow a dry run of the same agent at the same score."""
+
+    def test_valid_token_verifies(self):
+        t = g.issue_confirmation_token("invoice-bot", 90, now=1000)
+        self.assertTrue(g.verify_confirmation_token(t, "invoice-bot", 90, now=1100))
+
+    def test_token_is_bound_to_agent_and_score(self):
+        t = g.issue_confirmation_token("invoice-bot", 90, now=1000)
+        self.assertFalse(g.verify_confirmation_token(t, "hr-onboarding-bot", 90, now=1100))
+        self.assertFalse(g.verify_confirmation_token(t, "invoice-bot", 60, now=1100))
+
+    def test_token_expires(self):
+        t = g.issue_confirmation_token("invoice-bot", 90, now=1000)
+        self.assertFalse(g.verify_confirmation_token(t, "invoice-bot", 90, now=1000 + g.CONFIRMATION_TTL_SECONDS + 1))
+
+    def test_forged_or_empty_token_rejected(self):
+        for bad in ("", "garbage", "1000.deadbeef", None):
+            self.assertFalse(g.verify_confirmation_token(bad, "invoice-bot", 90, now=1000))
+
+
+class UntrustedInput(unittest.TestCase):
+    def test_quote_escapes_search_syntax(self):
+        import isc_client
+        self.assertEqual(isc_client.quote('Adam" OR name:*'), 'Adam\\" OR name:*')
+        self.assertEqual(isc_client.quote("a\\b"), "a\\\\b")
+
+    def test_log_filter_strips_newlines_and_redacts(self):
+        import logging
+        import isc_client
+        rec = logging.LogRecord("t", logging.INFO, "", 0, 'reason="x\nevent=forged client_secret=abc"', None, None)
+        isc_client._RedactFilter().filter(rec)
+        self.assertNotIn("\n", rec.msg)
+        self.assertNotIn("abc", rec.msg)
+
+
 if __name__ == "__main__":
     unittest.main()
